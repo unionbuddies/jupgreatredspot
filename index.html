@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Jupiter — The Great Red Spot</title>
+<style>
+  :root {
+    --bg: #04050a;
+    --panel: rgba(16, 18, 30, 0.86);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --text: #f3ede2;
+    --muted: #a7a294;
+    --accent: #e8794b;
+    --accent-2: #f2b07a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden; -webkit-font-smoothing: antialiased; }
+  #scene { position: fixed; inset: 0; display: block; cursor: grab; touch-action: none; }
+  #scene.dragging { cursor: grabbing; }
+  #scene.can-click { cursor: pointer; }
+
+  .loading { position: fixed; inset: 0; display: grid; place-items: center; z-index: 30;
+    background: radial-gradient(circle at 50% 45%, #14101c, #04050a 70%); transition: opacity 0.6s; }
+  .loading.hide { opacity: 0; pointer-events: none; }
+  .loading .spin { width: 46px; height: 46px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.15); border-top-color: var(--accent); animation: spin 0.9s linear infinite; }
+  .loading p { position: absolute; bottom: 40%; margin-top: 80px; color: var(--muted); font-size: 14px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .title { position: fixed; top: 28px; left: 32px; z-index: 5; pointer-events: none;
+    text-shadow: 0 2px 24px rgba(0,0,0,0.7); }
+  .title h1 { font-size: 34px; font-weight: 700; letter-spacing: 0.5px;
+    background: linear-gradient(90deg, #f6e6c8, #e8794b);
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .title p { color: var(--muted); font-size: 14px; margin-top: 4px; max-width: 340px; }
+
+  .hint { position: fixed; top: 30px; right: 32px; z-index: 5; display: flex; gap: 14px; align-items: center;
+    background: rgba(255,255,255,0.06); border: 1px solid var(--panel-border); border-radius: 999px;
+    padding: 9px 16px; font-size: 12.5px; color: var(--muted); backdrop-filter: blur(8px); }
+  .hint b { color: var(--text); font-weight: 600; }
+  .hint .sep { opacity: 0.35; }
+
+  .controls { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); z-index: 5;
+    display: flex; gap: 10px; align-items: center; background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 16px; padding: 10px 12px; backdrop-filter: blur(12px); box-shadow: 0 12px 40px rgba(0,0,0,0.45); }
+  .controls button { font: inherit; color: var(--text); cursor: pointer; background: rgba(255,255,255,0.06);
+    border: 1px solid var(--panel-border); border-radius: 10px; padding: 9px 14px; font-size: 13.5px;
+    transition: background 0.18s, transform 0.08s, border-color 0.18s; }
+  .controls button:hover { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.28); }
+  .controls button:active { transform: translateY(1px); }
+  .controls .primary { background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: #241206;
+    border: none; font-weight: 600; }
+  .controls .primary:hover { filter: brightness(1.08); }
+  .controls .zoombtn { width: 40px; padding: 9px 0; font-size: 18px; line-height: 1; }
+  .controls .zoomval { min-width: 52px; text-align: center; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+
+  .panel { position: fixed; top: 0; right: 0; height: 100%; width: 440px; max-width: 92vw; z-index: 10;
+    background: var(--panel); border-left: 1px solid var(--panel-border); backdrop-filter: blur(18px);
+    box-shadow: -20px 0 60px rgba(0,0,0,0.5); transform: translateX(100%);
+    transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1); display: flex; flex-direction: column; }
+  .panel.open { transform: translateX(0); }
+  .panel-head { padding: 26px 28px 18px; border-bottom: 1px solid var(--panel-border); position: relative; flex-shrink: 0; }
+  .panel-head .kicker { color: var(--accent-2); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; font-weight: 600; }
+  .panel-head h2 { font-size: 26px; margin-top: 6px; font-weight: 700; }
+  .panel-head .close { position: absolute; top: 22px; right: 22px; width: 34px; height: 34px; border-radius: 50%;
+    border: 1px solid var(--panel-border); background: rgba(255,255,255,0.06); color: var(--text); cursor: pointer;
+    font-size: 18px; line-height: 1; display: grid; place-items: center; transition: background 0.18s; }
+  .panel-head .close:hover { background: rgba(255,255,255,0.16); }
+  .panel-body { padding: 22px 28px 44px; overflow-y: auto; }
+  .panel-body p { color: #e2dccf; font-size: 14.5px; line-height: 1.62; margin-bottom: 16px; }
+  .panel-body h3 { font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent-2);
+    margin: 28px 0 12px; font-weight: 700; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 4px 0 8px; }
+  .stat { background: rgba(255,255,255,0.05); border: 1px solid var(--panel-border); border-radius: 12px; padding: 14px 15px; }
+  .stat .v { font-size: 20px; font-weight: 700; color: #fff; }
+  .stat .l { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.35; }
+  .panel-body ul { list-style: none; }
+  .panel-body li { color: #e2dccf; font-size: 14px; line-height: 1.55; padding-left: 20px; position: relative; margin-bottom: 10px; }
+  .panel-body li::before { content: "›"; position: absolute; left: 4px; color: var(--accent); font-weight: 700; }
+  .timeline { border-left: 2px solid rgba(232,121,75,0.35); margin: 4px 0 8px; padding-left: 0; }
+  .timeline .tl { position: relative; padding: 0 0 16px 20px; }
+  .timeline .tl::before { content: ""; position: absolute; left: -7px; top: 4px; width: 11px; height: 11px;
+    border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px rgba(232,121,75,0.18); }
+  .timeline .tl .yr { font-weight: 700; color: #fff; font-size: 14px; }
+  .timeline .tl .tx { color: var(--muted); font-size: 13px; line-height: 1.5; margin-top: 2px; }
+  .note { background: rgba(232,121,75,0.09); border: 1px solid rgba(232,121,75,0.28); border-radius: 12px;
+    padding: 14px 16px; font-size: 13.5px; color: #f2ddcb; line-height: 1.55; margin-top: 8px; }
+  .scrollbar::-webkit-scrollbar { width: 8px; }
+  .scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 8px; }
+  .err { position: fixed; inset: 0; display: none; place-items: center; text-align: center; z-index: 40; padding: 40px;
+    background: radial-gradient(circle at 50% 45%, #1a1220, #04050a 70%); }
+  .err.show { display: grid; }
+  .err div { max-width: 460px; }
+  .err h2 { color: var(--accent-2); font-size: 20px; margin-bottom: 12px; }
+  .err p { color: var(--muted); font-size: 14px; line-height: 1.6; }
+
+  @media (max-width: 560px) {
+    .title { top: 16px; left: 16px; } .title h1 { font-size: 25px; } .title p { font-size: 12.5px; }
+    .hint { display: none; }
+    .controls { bottom: 14px; gap: 6px; padding: 8px; flex-wrap: wrap; justify-content: center; width: calc(100% - 20px); }
+    .controls .primary { order: -1; width: 100%; }
+  }
+</style>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+
+  <div class="loading" id="loading"><div class="spin"></div><p>Rendering Jupiter…</p></div>
+
+  <div class="err" id="err"><div>
+    <h2>Couldn't load the 3D engine</h2>
+    <p>This visualization needs the Three.js library, which loads from a CDN and requires an internet connection. Please check your connection and reload.</p>
+  </div></div>
+
+  <div class="title">
+    <h1>Jupiter</h1>
+    <p>The largest planet in our Solar System — and home to a storm bigger than Earth.</p>
+  </div>
+
+  <div class="hint">
+    <span><b>Scroll</b> to zoom</span><span class="sep">·</span>
+    <span><b>Drag</b> to look around</span><span class="sep">·</span>
+    <span><b>Click</b> the Great Red Spot</span>
+  </div>
+
+  <div class="controls">
+    <button class="zoombtn" id="zoomOut" title="Zoom out">−</button>
+    <span class="zoomval" id="zoomVal">1.0×</span>
+    <button class="zoombtn" id="zoomIn" title="Zoom in">+</button>
+    <button class="primary" id="zoomSpot">Zoom to the Great Red Spot</button>
+    <button id="reset">Reset view</button>
+  </div>
+
+  <aside class="panel scrollbar" id="panel" aria-hidden="true">
+    <div class="panel-head">
+      <div class="kicker">Jupiter · Southern Hemisphere</div>
+      <h2>The Great Red Spot</h2>
+      <button class="close" id="closePanel" title="Close">✕</button>
+    </div>
+    <div class="panel-body scrollbar">
+      <p>The Great Red Spot is a colossal <b>anticyclonic storm</b> — a high-pressure system whirling counter-clockwise in Jupiter's southern hemisphere. It is the largest and longest-lived storm known anywhere in the Solar System, and astronomers have tracked it for well over a century.</p>
+
+      <div class="stats">
+        <div class="stat"><div class="v">~16,000 km</div><div class="l">Wide — larger than the whole Earth</div></div>
+        <div class="stat"><div class="v">~430 km/h</div><div class="l">Peak wind speeds at its edge</div></div>
+        <div class="stat"><div class="v">190+ yrs</div><div class="l">Continuously observed (perhaps 350+)</div></div>
+        <div class="stat"><div class="v">~6 days</div><div class="l">To complete one full rotation</div></div>
+      </div>
+
+      <h3>How it formed</h3>
+      <p>Jupiter has <b>no solid surface</b> — it's a giant ball of gas that spins astonishingly fast, completing a full day in under 10 hours. That rapid rotation, combined with heat rising from the planet's interior, tears its atmosphere into powerful east–west <b>jet streams</b>, which we see as Jupiter's colorful bands.</p>
+      <p>The Great Red Spot sits wedged <b>between two of these opposing jet streams</b> — one racing eastward to its north, one westward to its south. Like a marble caught between two conveyor belts, the storm is spun up and hemmed in from both sides, which keeps it tightly organized and continuously fed with energy.</p>
+
+      <h3>Why it never dies</h3>
+      <ul>
+        <li>On Earth, hurricanes fade when they hit land or cool water. Jupiter has neither — so nothing breaks the storm apart.</li>
+        <li>It survives by <b>absorbing smaller storms</b> that drift into it, swallowing their energy.</li>
+        <li>Heat welling up from Jupiter's core continuously powers its circulation.</li>
+      </ul>
+
+      <h3>What Juno revealed</h3>
+      <p>NASA's <b>Juno spacecraft</b>, orbiting Jupiter since 2016, peered beneath the cloud tops with microwave and gravity instruments. It found the storm isn't just a surface feature — its roots plunge <b>at least 300–500 km deep</b> into the atmosphere, far deeper than Earth's oceans, though shallower than the storm is wide.</p>
+
+      <h3>The mystery of its color</h3>
+      <p>No one is completely certain why it's red. The leading idea is that chemicals — possibly sulfur, phosphorus, or organic compounds — are dredged up from deep below and then chemically altered by the Sun's ultraviolet light, staining the high cloud tops a rusty red.</p>
+
+      <h3>A shrinking giant</h3>
+      <div class="timeline">
+        <div class="tl"><div class="yr">1665</div><div class="tx">A "permanent spot" is possibly first recorded by early telescopic observers.</div></div>
+        <div class="tl"><div class="yr">1879</div><div class="tx">Measured at roughly 41,000 km across — wide enough to swallow three Earths.</div></div>
+        <div class="tl"><div class="yr">1979</div><div class="tx">Voyager flybys capture it at about 23,000 km, already noticeably smaller.</div></div>
+        <div class="tl"><div class="yr">Today</div><div class="tx">Around 16,000 km and slowly becoming more circular.</div></div>
+      </div>
+
+      <div class="note"><b>Will it disappear?</b> The storm has been shrinking for over a century, and whether it will eventually fade away — or simply stabilize at a smaller size — is one of planetary science's genuinely open questions.</div>
+    </div>
+  </aside>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+window.addEventListener("load", function () {
+  "use strict";
+  if (typeof THREE === "undefined") { document.getElementById("err").classList.add("show");
+    document.getElementById("loading").classList.add("hide"); return; }
+
+  const canvas = document.getElementById("scene");
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+
+  // ---------- Great Red Spot location on the globe ----------
+  const GRS_LAT = -0.36;   // radians, ~21° south
+  const GRS_LON = 0.0;     // front, facing camera
+  function lonLatToVec3(lon, lat, r) {
+    return new THREE.Vector3(
+      r * Math.cos(lat) * Math.sin(lon),
+      r * Math.sin(lat),
+      r * Math.cos(lat) * Math.cos(lon)
+    );
+  }
+  const GRS_DIR = lonLatToVec3(GRS_LON, GRS_LAT, 1).normalize();
+
+  // ---------- Procedural Jupiter texture ----------
+  function hash(x, y) {
+    let h = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+    return h - Math.floor(h);
+  }
+  function vnoise(x, y) {
+    const xi = Math.floor(x), yi = Math.floor(y);
+    const xf = x - xi, yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
+    return a * (1 - u) * (1 - v) + b * u * (1 - v) + c * (1 - u) * v + d * u * v;
+  }
+  function fbm(x, y) {
+    let val = 0, amp = 0.5;
+    for (let i = 0; i < 4; i++) { val += amp * vnoise(x, y); x *= 2.03; y *= 2.03; amp *= 0.5; }
+    return val;
+  }
+  // Jupiter colour palette by latitude fraction (0 = north pole, 1 = south pole)
+  const palette = [
+    [0.00, [150, 138, 120]], [0.10, [176, 158, 128]], [0.20, [205, 180, 137]],
+    [0.28, [150, 110, 74]],  [0.36, [232, 214, 176]], [0.44, [170, 120, 80]],
+    [0.50, [242, 228, 196]], [0.57, [178, 126, 84]],  [0.66, [231, 210, 168]],
+    [0.74, [156, 112, 78]],  [0.82, [206, 182, 137]], [0.90, [172, 156, 130]],
+    [1.00, [150, 138, 120]]
+  ];
+  function bandColor(l) {
+    l = Math.max(0, Math.min(1, l));
+    for (let i = 0; i < palette.length - 1; i++) {
+      const a = palette[i], b = palette[i + 1];
+      if (l >= a[0] && l <= b[0]) {
+        const t = (l - a[0]) / (b[0] - a[0]);
+        return [ a[1][0] + (b[1][0] - a[1][0]) * t,
+                 a[1][1] + (b[1][1] - a[1][1]) * t,
+                 a[1][2] + (b[1][2] - a[1][2]) * t ];
+      }
+    }
+    return palette[palette.length - 1][1];
+  }
+  function buildJupiterTexture() {
+    const W = 1536, H = 768;
+    const c = document.createElement("canvas"); c.width = W; c.height = H;
+    const g = c.getContext("2d");
+    const img = g.createImageData(W, H);
+    const data = img.data;
+    const bump = document.createElement("canvas"); bump.width = W; bump.height = H;
+    const bg = bump.getContext("2d");
+    const bimg = bg.createImageData(W, H);
+    const bdata = bimg.data;
+
+    for (let y = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++) {
+        const u = x / W;
+        // domain-warp the latitude so band edges look turbulent & marbled
+        const warp = (fbm(u * 7, v * 22) - 0.5) * 0.05 + (fbm(u * 18, v * 40) - 0.5) * 0.02;
+        const lat = v + warp;
+        let col = bandColor(lat);
+        // fine brightness turbulence
+        const streak = fbm(u * 28 + 4, v * 90 + 9);
+        const b = 0.82 + streak * 0.36;
+        // occasional swirling vortices near belt edges
+        const vor = fbm(u * 40, v * 120);
+        const bright = b * (0.94 + 0.12 * (vor - 0.5));
+        const i = (y * W + x) * 4;
+        data[i]     = Math.min(255, col[0] * bright);
+        data[i + 1] = Math.min(255, col[1] * bright);
+        data[i + 2] = Math.min(255, col[2] * bright);
+        data[i + 3] = 255;
+        const bb = Math.min(255, 120 + (streak - 0.5) * 220 + (vor - 0.5) * 90);
+        bdata[i] = bdata[i + 1] = bdata[i + 2] = bb; bdata[i + 3] = 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+    bg.putImageData(bimg, 0, 0);
+
+    // faint seat for the Great Red Spot so the globe reads correctly even before the decal
+    const gx = (0.5 + GRS_LON / (2 * Math.PI)) * W;
+    const gy = (0.5 - GRS_LAT / Math.PI) * H;
+    const grad = g.createRadialGradient(gx, gy, 4, gx, gy, W * 0.052);
+    grad.addColorStop(0, "rgba(150,55,35,0.55)");
+    grad.addColorStop(1, "rgba(150,55,35,0)");
+    g.save(); g.translate(gx, gy); g.scale(1.5, 1); g.translate(-gx, -gy);
+    g.fillStyle = grad; g.beginPath(); g.arc(gx, gy, W * 0.052, 0, Math.PI * 2); g.fill(); g.restore();
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    const btex = new THREE.CanvasTexture(bump);
+    return { map: tex, bump: btex };
+  }
+
+  const tex = buildJupiterTexture();
+
+  // ---------- Planet ----------
+  const planetGeo = new THREE.SphereGeometry(1, 96, 96);
+  const planetMat = new THREE.MeshStandardMaterial({
+    map: tex.map, bumpMap: tex.bump, bumpScale: 0.015, roughness: 1, metalness: 0
+  });
+  const planet = new THREE.Mesh(planetGeo, planetMat);
+  scene.add(planet);
+
+  // ---------- Atmosphere glow ----------
+  const glowMat = new THREE.ShaderMaterial({
+    transparent: true, blending: THREE.AdditiveBlending, side: THREE.BackSide, depthWrite: false,
+    vertexShader: `varying float intensity;
+      void main(){ vec3 vN = normalize(normalMatrix * normal);
+        intensity = pow(0.62 - dot(vN, vec3(0.0,0.0,1.0)), 3.5);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: `varying float intensity;
+      void main(){ gl_FragColor = vec4(0.98,0.62,0.36,1.0) * clamp(intensity,0.0,1.0); }`
+  });
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(1.16, 64, 64), glowMat);
+  scene.add(glow);
+
+  // ---------- Great Red Spot animated decal ----------
+  const spotCanvas = document.createElement("canvas");
+  spotCanvas.width = 256; spotCanvas.height = 200;
+  const sc = spotCanvas.getContext("2d");
+  const spotTex = new THREE.CanvasTexture(spotCanvas);
+  spotTex.colorSpace = THREE.SRGBColorSpace;
+  const spotMat = new THREE.MeshBasicMaterial({ map: spotTex, transparent: true,
+    depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  const spotGeo = new THREE.PlaneGeometry(0.62, 0.46);
+  const spot = new THREE.Mesh(spotGeo, spotMat);
+  const spotPos = GRS_DIR.clone().multiplyScalar(1.002);
+  spot.position.copy(spotPos);
+  spot.lookAt(spotPos.clone().multiplyScalar(2));
+  planet.add(spot);
+
+  function drawSpot(time) {
+    const w = spotCanvas.width, h = spotCanvas.height, cx = w / 2, cy = h / 2;
+    sc.clearRect(0, 0, w, h);
+    sc.save();
+    sc.translate(cx, cy); sc.scale(1, h / w);
+    sc.beginPath(); sc.arc(0, 0, w / 2 - 4, 0, Math.PI * 2); sc.clip();
+    // body
+    const body = sc.createRadialGradient(0, 0, 4, 0, 0, w / 2);
+    body.addColorStop(0, "#f2ad8b"); body.addColorStop(0.35, "#d9694a");
+    body.addColorStop(0.7, "#a83521"); body.addColorStop(1, "#7a2417");
+    sc.fillStyle = body; sc.fillRect(-w, -w, w * 2, w * 2);
+    // swirl bands
+    const spin = time * 0.35;
+    for (let ring = 0; ring < 6; ring++) {
+      const rr = (w / 2) * (0.9 - ring * 0.13);
+      sc.strokeStyle = ring % 2 === 0 ? "rgba(255,214,186,0.30)" : "rgba(110,28,18,0.42)";
+      sc.lineWidth = w * 0.04; sc.beginPath();
+      for (let a = 0; a <= Math.PI * 2 + 0.1; a += 0.14) {
+        const wob = 0.07 * Math.sin(a * 3 + spin + ring);
+        const rad = rr * (1 + wob);
+        const ang = a + spin * (1 - ring * 0.1);
+        const px = Math.cos(ang) * rad, py = Math.sin(ang) * rad * 0.94;
+        a === 0 ? sc.moveTo(px, py) : sc.lineTo(px, py);
+      }
+      sc.stroke();
+    }
+    // bright eye
+    const eye = sc.createRadialGradient(0, 0, 0, 0, 0, w * 0.16);
+    eye.addColorStop(0, "rgba(255,232,208,0.9)"); eye.addColorStop(1, "rgba(255,232,208,0)");
+    sc.fillStyle = eye; sc.beginPath(); sc.arc(0, 0, w * 0.16, 0, Math.PI * 2); sc.fill();
+    sc.restore();
+    // dark rim
+    sc.save(); sc.translate(cx, cy); sc.scale(1, h / w);
+    sc.strokeStyle = "rgba(60,16,10,0.6)"; sc.lineWidth = w * 0.03;
+    sc.beginPath(); sc.arc(0, 0, w / 2 - 5, 0, Math.PI * 2); sc.stroke(); sc.restore();
+    spotTex.needsUpdate = true;
+  }
+
+  // pulsing hint ring around the spot
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xffb488, transparent: true,
+    opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.34, 0.37, 48), ringMat);
+  ring.position.copy(spotPos.clone().multiplyScalar(1.001));
+  ring.lookAt(spotPos.clone().multiplyScalar(2));
+  planet.add(ring);
+
+  // ---------- Orient globe so the Red Spot faces the camera ----------
+  // (Sphere UV already places lon 0 toward +Z, so no rotation needed.)
+
+  // ---------- Lighting ----------
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const sun = new THREE.DirectionalLight(0xfff3e0, 1.5);
+  sun.position.set(-2.2, 1.2, 2.5);
+  scene.add(sun);
+  const rim = new THREE.DirectionalLight(0x6688cc, 0.35);
+  rim.position.set(2, -1, -1.5);
+  scene.add(rim);
+
+  // ---------- Starfield ----------
+  (function stars() {
+    const n = 1800, pos = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const r = 40 + Math.random() * 40;
+      const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+      pos[i*3] = r * Math.sin(ph) * Math.cos(th);
+      pos[i*3+1] = r * Math.sin(ph) * Math.sin(th);
+      pos[i*3+2] = r * Math.cos(ph);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    scene.add(new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.18, sizeAttenuation: true })));
+  })();
+
+  // ---------- Camera controller (orbit around a target, clamped) ----------
+  const DEFAULT_DIST = 3.4, MIN_DIST = 1.55, MAX_DIST = 7;
+  let camTarget = new THREE.Vector3(0, 0, 0);
+  // spherical offset of camera around target
+  let dist = DEFAULT_DIST, theta = 0, phi = Math.PI / 2; // theta azimuth, phi polar
+  const tgtTarget = new THREE.Vector3(0, 0, 0);
+  let tgtDist = DEFAULT_DIST, tgtTheta = 0, tgtPhi = Math.PI / 2, tweening = false;
+
+  function applyCamera() {
+    const sinPhi = Math.sin(phi);
+    const off = new THREE.Vector3(
+      dist * sinPhi * Math.sin(theta),
+      dist * Math.cos(phi),
+      dist * sinPhi * Math.cos(theta)
+    );
+    camera.position.copy(camTarget).add(off);
+    camera.lookAt(camTarget);
+  }
+  function updateZoomLabel() {
+    document.getElementById("zoomVal").textContent = (DEFAULT_DIST / dist).toFixed(1) + "×";
+  }
+
+  // interaction
+  let dragging = false, moved = false, px = 0, py = 0;
+  function onDown(x, y) { dragging = true; moved = false; px = x; py = y; canvas.classList.add("dragging"); tweening = false; }
+  function onMove(x, y) {
+    if (!dragging) { updateHover(x, y); return; }
+    const dx = x - px, dy = y - py;
+    if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+    theta -= dx * 0.005; phi -= dy * 0.005;
+    theta = Math.max(-0.75, Math.min(0.75, theta));
+    phi = Math.max(Math.PI / 2 - 0.55, Math.min(Math.PI / 2 + 0.75, phi));
+    tgtTheta = theta; tgtPhi = phi;
+    px = x; py = y;
+  }
+  function onUp(x, y, isTouch) {
+    if (dragging && !moved) handleClick(x, y);
+    dragging = false; canvas.classList.remove("dragging");
+  }
+  canvas.addEventListener("mousedown", e => onDown(e.clientX, e.clientY));
+  window.addEventListener("mousemove", e => onMove(e.clientX, e.clientY));
+  window.addEventListener("mouseup", e => onUp(e.clientX, e.clientY));
+  canvas.addEventListener("touchstart", e => { const t = e.touches[0]; onDown(t.clientX, t.clientY); }, { passive: true });
+  canvas.addEventListener("touchmove", e => { const t = e.touches[0]; onMove(t.clientX, t.clientY); }, { passive: true });
+  canvas.addEventListener("touchend", e => { const t = e.changedTouches[0]; onUp(t.clientX, t.clientY, true); });
+  canvas.addEventListener("wheel", e => {
+    e.preventDefault();
+    dist *= e.deltaY < 0 ? 1 / 1.12 : 1.12;
+    dist = Math.max(MIN_DIST, Math.min(MAX_DIST, dist));
+    tgtDist = dist; tweening = false; updateZoomLabel();
+  }, { passive: false });
+
+  // raycast against the spot
+  const raycaster = new THREE.Raycaster();
+  const ndc = new THREE.Vector2();
+  function pointerHitsSpot(x, y) {
+    ndc.x = (x / window.innerWidth) * 2 - 1;
+    ndc.y = -(y / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(ndc, camera);
+    return raycaster.intersectObject(spot, false).length > 0;
+  }
+  function updateHover(x, y) { canvas.classList.toggle("can-click", pointerHitsSpot(x, y)); }
+  function handleClick(x, y) { if (pointerHitsSpot(x, y)) { openPanel(); zoomToSpot(); } }
+
+  // ---------- Tween helpers ----------
+  function zoomToSpot() {
+    // aim camera down the spot's surface normal, framed a touch left of centre
+    tgtTarget.copy(GRS_DIR).multiplyScalar(0.55);
+    tgtDist = 1.75;
+    tgtTheta = GRS_LON - 0.18;         // slight offset so the panel doesn't cover it
+    tgtPhi = Math.PI / 2 - GRS_LAT * 0.9 + 0.12;
+    tweening = true;
+  }
+  function resetView() {
+    tgtTarget.set(0, 0, 0); tgtDist = DEFAULT_DIST; tgtTheta = 0; tgtPhi = Math.PI / 2; tweening = true;
+  }
+  function stepZoom(factor) {
+    dist = Math.max(MIN_DIST, Math.min(MAX_DIST, dist * factor));
+    tgtDist = dist; tweening = false; updateZoomLabel();
+  }
+
+  // ---------- Panel ----------
+  let panelOpen = false;
+  const panel = document.getElementById("panel");
+  function openPanel() { panelOpen = true; panel.classList.add("open"); panel.setAttribute("aria-hidden", "false"); }
+  function closePanel() { panelOpen = false; panel.classList.remove("open"); panel.setAttribute("aria-hidden", "true"); }
+  document.getElementById("closePanel").addEventListener("click", closePanel);
+  document.getElementById("zoomSpot").addEventListener("click", () => { openPanel(); zoomToSpot(); });
+  document.getElementById("reset").addEventListener("click", () => { closePanel(); resetView(); });
+  document.getElementById("zoomIn").addEventListener("click", () => stepZoom(1 / 1.25));
+  document.getElementById("zoomOut").addEventListener("click", () => stepZoom(1.25));
+  window.addEventListener("keydown", e => { if (e.key === "Escape") closePanel(); });
+
+  // ---------- Resize ----------
+  window.addEventListener("resize", () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // ---------- Render loop ----------
+  const clock = new THREE.Clock();
+  let elapsed = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    const dt = clock.getDelta(); elapsed += dt;
+
+    if (tweening) {
+      const k = 1 - Math.pow(0.0015, dt);
+      camTarget.lerp(tgtTarget, k);
+      dist += (tgtDist - dist) * k;
+      theta += (tgtTheta - theta) * k;
+      phi += (tgtPhi - phi) * k;
+      if (Math.abs(tgtDist - dist) < 0.002 && camTarget.distanceTo(tgtTarget) < 0.002 &&
+          Math.abs(tgtTheta - theta) < 0.002 && Math.abs(tgtPhi - phi) < 0.002) {
+        camTarget.copy(tgtTarget); dist = tgtDist; theta = tgtTheta; phi = tgtPhi; tweening = false;
+      }
+      updateZoomLabel();
+    }
+
+    // very slow atmospheric shimmer on the bands (keeps the spot fixed)
+    planet.rotation.y = Math.sin(elapsed * 0.05) * 0.006;
+
+    drawSpot(elapsed);
+
+    // pulse the hint ring only when zoomed out and panel closed
+    const showRing = (DEFAULT_DIST / dist) < 1.5 && !panelOpen;
+    ring.visible = showRing;
+    if (showRing) {
+      const p = 0.5 + 0.5 * Math.sin(elapsed * 2.2);
+      ringMat.opacity = 0.25 + 0.4 * p;
+      const s = 1 + 0.06 * p; ring.scale.set(s, s, s);
+    }
+
+    applyCamera();
+    renderer.render(scene, camera);
+  }
+
+  applyCamera();
+  updateZoomLabel();
+  animate();
+  document.getElementById("loading").classList.add("hide");
+});
+</script>
+</body>
+</html>
