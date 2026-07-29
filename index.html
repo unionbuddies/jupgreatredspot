@@ -37,6 +37,9 @@
     -webkit-background-clip: text; background-clip: text; color: transparent; }
   .title p { color: var(--muted); font-size: 14px; margin-top: 4px; max-width: 340px; }
 
+  .credit { position: fixed; bottom: 10px; left: 14px; z-index: 4; font-size: 10.5px;
+    color: rgba(167, 162, 148, 0.5); pointer-events: none; letter-spacing: 0.2px; }
+
   .hint { position: fixed; top: 30px; right: 32px; z-index: 5; display: flex; gap: 14px; align-items: center;
     background: rgba(255,255,255,0.06); border: 1px solid var(--panel-border); border-radius: 999px;
     padding: 9px 16px; font-size: 12.5px; color: var(--muted); backdrop-filter: blur(8px); }
@@ -44,7 +47,8 @@
   .hint .sep { opacity: 0.35; }
 
   .controls { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); z-index: 5;
-    display: flex; gap: 10px; align-items: center; background: var(--panel); border: 1px solid var(--panel-border);
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; max-width: 94vw;
+    background: var(--panel); border: 1px solid var(--panel-border);
     border-radius: 16px; padding: 10px 12px; backdrop-filter: blur(12px); box-shadow: 0 12px 40px rgba(0,0,0,0.45); }
   .controls button { font: inherit; color: var(--text); cursor: pointer; background: rgba(255,255,255,0.06);
     border: 1px solid var(--panel-border); border-radius: 10px; padding: 9px 14px; font-size: 13.5px;
@@ -56,6 +60,25 @@
   .controls .primary:hover { filter: brightness(1.08); }
   .controls .zoombtn { width: 40px; padding: 9px 0; font-size: 18px; line-height: 1; }
   .controls .zoomval { min-width: 52px; text-align: center; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+
+  .controls button.active { background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    color: #241206; border: none; font-weight: 600; }
+
+  .timebar { position: fixed; bottom: 92px; left: 50%; transform: translateX(-50%); z-index: 5;
+    display: none; align-items: center; gap: 14px; background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 14px; padding: 10px 16px; backdrop-filter: blur(12px); box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    width: 520px; max-width: 92vw; }
+  .timebar.show { display: flex; }
+  .timebar input[type=range] { flex: 1; accent-color: var(--accent); cursor: pointer; height: 4px; }
+  .timebar .tRead { font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  .timebar .tRead b { color: #fff; font-size: 14px; }
+  .timebar .tRead .km { color: var(--accent-2); }
+  .timebar button { font: inherit; color: var(--text); cursor: pointer; background: rgba(255,255,255,0.06);
+    border: 1px solid var(--panel-border); border-radius: 9px; padding: 7px 11px; font-size: 13px; transition: background 0.18s; }
+  .timebar button:hover { background: rgba(255,255,255,0.14); }
+  .timebar .tPlay { width: 40px; text-align: center; }
+  @media (max-width: 560px) { .timebar { bottom: 128px; flex-wrap: wrap; justify-content: center; width: calc(100% - 20px); }
+    .timebar input[type=range] { order: 3; flex-basis: 100%; } }
 
   .panel { position: fixed; top: 0; right: 0; height: 100%; width: 440px; max-width: 92vw; z-index: 10;
     background: var(--panel); border-left: 1px solid var(--panel-border); backdrop-filter: blur(18px);
@@ -110,6 +133,8 @@
 
   <div class="loading" id="loading"><div class="spin"></div><p>Rendering Jupiter…</p></div>
 
+  <div class="credit">Jupiter map © Solar System Scope · CC BY 4.0</div>
+
   <div class="err" id="err"><div>
     <h2>Couldn't load the 3D engine</h2>
     <p>This visualization needs the Three.js library, which loads from a CDN and requires an internet connection. Please check your connection and reload.</p>
@@ -123,7 +148,7 @@
   <div class="hint">
     <span><b>Scroll</b> to zoom</span><span class="sep">·</span>
     <span><b>Drag</b> to look around</span><span class="sep">·</span>
-    <span><b>Click</b> the Great Red Spot</span>
+    <span><b>Click</b> Jupiter or its storm</span>
   </div>
 
   <div class="controls">
@@ -131,7 +156,15 @@
     <span class="zoomval" id="zoomVal">1.0×</span>
     <button class="zoombtn" id="zoomIn" title="Zoom in">+</button>
     <button class="primary" id="zoomSpot">Zoom to the Great Red Spot</button>
+    <button id="timeMachine">🕰 Time machine</button>
     <button id="reset">Reset view</button>
+  </div>
+
+  <div class="timebar" id="timebar">
+    <button class="tPlay" id="timePlay" title="Play / pause">❚❚</button>
+    <input type="range" id="timeSlider" min="1880" max="2024" step="1" value="2024" />
+    <div class="tRead"><b id="timeYear">2024</b> · <span class="km" id="timeSize">~16,000 km</span> · <span id="timeEarth">1.3× Earth</span></div>
+    <button id="timeExit" title="Exit time view">Exit</button>
   </div>
 
   <aside class="panel scrollbar" id="panel" aria-hidden="true">
@@ -179,6 +212,38 @@
     </div>
   </aside>
 
+  <aside class="panel scrollbar" id="panelJ" aria-hidden="true">
+    <div class="panel-head">
+      <div class="kicker">The Planet · Gas Giant</div>
+      <h2>Jupiter</h2>
+      <button class="close" id="closePanelJ" title="Close">✕</button>
+    </div>
+    <div class="panel-body scrollbar">
+      <p>Jupiter is the fifth planet from the Sun and by far the largest in the Solar System — more than <b>twice as massive as all the other planets combined</b>. It's a <b>gas giant</b> with no solid surface, made mostly of hydrogen and helium, much like the Sun.</p>
+
+      <div class="stats">
+        <div class="stat"><div class="v">11× Earth</div><div class="l">Diameter — about 139,820 km across</div></div>
+        <div class="stat"><div class="v">318× Earth</div><div class="l">Mass — it dominates the planets</div></div>
+        <div class="stat"><div class="v">9.9 hours</div><div class="l">One day — the fastest-spinning planet</div></div>
+        <div class="stat"><div class="v">12 years</div><div class="l">To orbit the Sun once</div></div>
+      </div>
+
+      <h3>A world without a surface</h3>
+      <p>There's nowhere to stand on Jupiter. The cloud tops give way to ever-thicker hydrogen that gradually turns from gas to liquid. Deeper still, crushing pressure squeezes it into an exotic <b>liquid metallic hydrogen</b>, likely wrapped around a dense core several times Earth's mass.</p>
+
+      <h3>Why the stripes?</h3>
+      <p>Jupiter's fast spin and internal heat stretch its clouds into alternating bands: bright <b>zones</b> of rising gas and darker <b>belts</b> of sinking gas, separated by howling jet streams. It's between these opposing jets that the Great Red Spot is trapped.</p>
+
+      <h3>Rings and moons</h3>
+      <p>Jupiter has a faint, dusty ring and <b>95+ known moons</b> — including the four giant <b>Galilean moons</b>: volcanic Io, ice-covered Europa (a prime target in the search for life), Ganymede (the largest moon in the entire Solar System), and cratered Callisto.</p>
+
+      <h3>A colossal magnetic field</h3>
+      <p>Jupiter generates the strongest magnetic field of any planet — a magnetosphere so vast that, if it glowed visibly, it would appear larger than the full Moon in our sky, trapping belts of intense radiation.</p>
+
+      <div class="note"><b>Look closer.</b> That reddish oval in the southern hemisphere is a storm bigger than Earth — click the <b>Great Red Spot</b> to explore it.</div>
+    </div>
+  </aside>
+
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script>
 window.addEventListener("load", function () {
@@ -197,6 +262,7 @@ window.addEventListener("load", function () {
   // ---------- Great Red Spot location on the globe ----------
   const GRS_LAT = -0.36;   // radians, ~21° south
   const GRS_LON = 0.0;     // front, facing camera
+  const GRS_TEX_OFFSET = 0.105;   // shift the real map so its Great Red Spot faces us
   function lonLatToVec3(lon, lat, r) {
     return new THREE.Vector3(
       r * Math.cos(lat) * Math.sin(lon),
@@ -224,12 +290,14 @@ window.addEventListener("load", function () {
     return val;
   }
   // Jupiter colour palette by latitude fraction (0 = north pole, 1 = south pole)
+  // Palette tuned to the Hubble image: bluish-grey mottled poles, near-white
+  // zones, and distinct saturated orange belts (0 = north pole .. 1 = south pole).
   const palette = [
-    [0.00, [150, 138, 120]], [0.10, [176, 158, 128]], [0.20, [205, 180, 137]],
-    [0.28, [150, 110, 74]],  [0.36, [232, 214, 176]], [0.44, [170, 120, 80]],
-    [0.50, [242, 228, 196]], [0.57, [178, 126, 84]],  [0.66, [231, 210, 168]],
-    [0.74, [156, 112, 78]],  [0.82, [206, 182, 137]], [0.90, [172, 156, 130]],
-    [1.00, [150, 138, 120]]
+    [0.00, [168, 170, 172]], [0.08, [204, 200, 184]], [0.15, [238, 227, 200]],
+    [0.22, [200, 130, 84]],  [0.30, [244, 233, 206]], [0.38, [202, 120, 72]],
+    [0.44, [176, 97, 58]],   [0.485,[249, 241, 217]], [0.55, [210, 152, 106]],
+    [0.62, [236, 221, 194]], [0.70, [202, 133, 87]],  [0.78, [235, 219, 192]],
+    [0.88, [204, 200, 186]], [1.00, [168, 170, 172]]
   ];
   function bandColor(l) {
     l = Math.max(0, Math.min(1, l));
@@ -245,7 +313,7 @@ window.addEventListener("load", function () {
     return palette[palette.length - 1][1];
   }
   function buildJupiterTexture() {
-    const W = 1536, H = 768;
+    const W = 2048, H = 1024;
     const c = document.createElement("canvas"); c.width = W; c.height = H;
     const g = c.getContext("2d");
     const img = g.createImageData(W, H);
@@ -259,36 +327,70 @@ window.addEventListener("load", function () {
       const v = y / H;
       for (let x = 0; x < W; x++) {
         const u = x / W;
-        // domain-warp the latitude so band edges look turbulent & marbled
-        const warp = (fbm(u * 7, v * 22) - 0.5) * 0.05 + (fbm(u * 18, v * 40) - 0.5) * 0.02;
+        // domain-warp the latitude so band edges scallop into festoons
+        const warp = (fbm(u * 8, v * 24) - 0.5) * 0.06 + (fbm(u * 20, v * 50) - 0.5) * 0.03
+                   + (fbm(u * 46, v * 96) - 0.5) * 0.012;
         const lat = v + warp;
         let col = bandColor(lat);
-        // fine brightness turbulence
-        const streak = fbm(u * 28 + 4, v * 90 + 9);
-        const b = 0.82 + streak * 0.36;
-        // occasional swirling vortices near belt edges
-        const vor = fbm(u * 40, v * 120);
-        const bright = b * (0.94 + 0.12 * (vor - 0.5));
+        // layered brightness turbulence: thin horizontal filaments + micro-detail
+        const streak = fbm(u * 34 + 4, v * 120 + 9);
+        const vor = fbm(u * 50, v * 150);
+        const fine = fbm(u * 120 + 7, v * 300 + 3);   // fine cloud-top grain (relief)
+        const b = 0.88 + streak * 0.30;
+        const bright = b * (0.90 + 0.20 * (vor - 0.5)) * (0.95 + 0.12 * (fine - 0.5));
         const i = (y * W + x) * 4;
         data[i]     = Math.min(255, col[0] * bright);
         data[i + 1] = Math.min(255, col[1] * bright);
         data[i + 2] = Math.min(255, col[2] * bright);
         data[i + 3] = 255;
-        const bb = Math.min(255, 120 + (streak - 0.5) * 220 + (vor - 0.5) * 90);
-        bdata[i] = bdata[i + 1] = bdata[i + 2] = bb; bdata[i + 3] = 255;
+        // high-contrast height field -> pronounced 3D relief under the light
+        const bb = 128 + (streak - 0.5) * 300 + (vor - 0.5) * 150 + (fine - 0.5) * 120;
+        const bbc = bb < 0 ? 0 : bb > 255 ? 255 : bb;
+        bdata[i] = bdata[i + 1] = bdata[i + 2] = bbc; bdata[i + 3] = 255;
       }
     }
     g.putImageData(img, 0, 0);
     bg.putImageData(bimg, 0, 0);
 
-    // faint seat for the Great Red Spot so the globe reads correctly even before the decal
-    const gx = (0.5 + GRS_LON / (2 * Math.PI)) * W;
-    const gy = (0.5 - GRS_LAT / Math.PI) * H;
-    const grad = g.createRadialGradient(gx, gy, 4, gx, gy, W * 0.052);
-    grad.addColorStop(0, "rgba(150,55,35,0.55)");
-    grad.addColorStop(1, "rgba(150,55,35,0)");
-    g.save(); g.translate(gx, gy); g.scale(1.5, 1); g.translate(-gx, -gy);
-    g.fillStyle = grad; g.beginPath(); g.arc(gx, gy, W * 0.052, 0, Math.PI * 2); g.fill(); g.restore();
+    // Scatter storm features (white ovals, brown "barges") as raised terrain,
+    // baked into both the colour map and the height map so they catch the light.
+    const grsU = 0.5 + GRS_LON / (2 * Math.PI), grsV = 0.5 - GRS_LAT / Math.PI;
+    function stormOval(cx, cy, rx, ry, rot, type) {
+      const cols = type === "white" ? ["rgba(248,241,220,0.7)", "rgba(222,208,178,0.34)", "rgba(212,194,164,0)"]
+                 :                     ["rgba(180,124,84,0.42)", "rgba(196,146,104,0.24)", "rgba(204,160,120,0)"];
+      g.save(); g.translate(cx, cy); g.rotate(rot); g.scale(1, ry / rx);
+      const gr = g.createRadialGradient(0, 0, 0, 0, 0, rx);
+      gr.addColorStop(0, cols[0]); gr.addColorStop(0.65, cols[1]); gr.addColorStop(1, cols[2]);
+      g.fillStyle = gr; g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill(); g.restore();
+      const lv = type === "white" ? 200 : 150;   // gentle relief only, no dark holes
+      bg.save(); bg.translate(cx, cy); bg.rotate(rot); bg.scale(1, ry / rx);
+      const br = bg.createRadialGradient(0, 0, 0, 0, 0, rx);
+      br.addColorStop(0, "rgba(" + lv + "," + lv + "," + lv + ",0.55)");
+      br.addColorStop(1, "rgba(" + lv + "," + lv + "," + lv + ",0)");
+      bg.fillStyle = br; bg.beginPath(); bg.arc(0, 0, rx, 0, Math.PI * 2); bg.fill(); bg.restore();
+    }
+    for (let i = 0; i < 12; i++) {
+      const u = Math.random(), vl = 0.14 + Math.random() * 0.72;
+      if (Math.abs(u - grsU) < 0.14 && Math.abs(vl - grsV) < 0.12) continue;  // keep clear of the GRS
+      const type = Math.random() < 0.7 ? "white" : "brown";
+      const rx = W * (0.009 + Math.random() * 0.015);
+      stormOval(u * W, vl * H, rx, rx * (0.5 + Math.random() * 0.35), (Math.random() - 0.5) * 0.7, type);
+    }
+
+    // the Great Red Spot's "bay": a pale collar ringing a faint warm centre,
+    // matching how the storm sits in a notch of the belt in the photo
+    const gx = grsU * W, gy = grsV * H;
+    g.save(); g.translate(gx, gy); g.scale(1.7, 1); g.translate(-gx, -gy);
+    const collar = g.createRadialGradient(gx, gy, W * 0.028, gx, gy, W * 0.066);
+    collar.addColorStop(0, "rgba(247,239,216,0)");
+    collar.addColorStop(0.5, "rgba(248,241,219,0.7)");
+    collar.addColorStop(1, "rgba(248,241,219,0)");
+    g.fillStyle = collar; g.beginPath(); g.arc(gx, gy, W * 0.066, 0, Math.PI * 2); g.fill();
+    const seat = g.createRadialGradient(gx, gy, 3, gx, gy, W * 0.040);
+    seat.addColorStop(0, "rgba(216,142,96,0.5)");
+    seat.addColorStop(1, "rgba(216,142,96,0)");
+    g.fillStyle = seat; g.beginPath(); g.arc(gx, gy, W * 0.040, 0, Math.PI * 2); g.fill();
+    g.restore();
 
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -297,15 +399,20 @@ window.addEventListener("load", function () {
     return { map: tex, bump: btex };
   }
 
-  const tex = buildJupiterTexture();
-
-  // ---------- Planet ----------
+  // ---------- Planet: real NASA-based Jupiter map (Solar System Scope, CC-BY 4.0) ----------
   const planetGeo = new THREE.SphereGeometry(1, 96, 96);
-  const planetMat = new THREE.MeshStandardMaterial({
-    map: tex.map, bumpMap: tex.bump, bumpScale: 0.015, roughness: 1, metalness: 0
-  });
+  const planetMat = new THREE.MeshStandardMaterial({ color: 0xc9a878, roughness: 1, metalness: 0 });
   const planet = new THREE.Mesh(planetGeo, planetMat);
   scene.add(planet);
+
+  new THREE.TextureLoader().load("jupiter_map.jpg", function (t) {
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    t.wrapS = THREE.RepeatWrapping;
+    t.offset.x = GRS_TEX_OFFSET;            // bring the real Great Red Spot to the front
+    planetMat.map = t; planetMat.color.setHex(0xffffff); planetMat.needsUpdate = true;
+    drawGRSFromPhoto(t.image);              // crop the real spot for the resizable decal
+  });
 
   // ---------- Atmosphere glow ----------
   const glowMat = new THREE.ShaderMaterial({
@@ -326,57 +433,113 @@ window.addEventListener("load", function () {
   const sc = spotCanvas.getContext("2d");
   const spotTex = new THREE.CanvasTexture(spotCanvas);
   spotTex.colorSpace = THREE.SRGBColorSpace;
-  const spotMat = new THREE.MeshBasicMaterial({ map: spotTex, transparent: true,
-    depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
-  const spotGeo = new THREE.PlaneGeometry(0.62, 0.46);
+  // MeshStandard (not Basic) so the storm is lit by the same sun + ambient and
+  // limb-shaded like the planet surface it sits on — key to it blending in.
+  // Invisible by default (opacity 0): the real Great Red Spot in the photo shows
+  // through, but this plane stays a click target and the resizable time-machine spot.
+  const spotMat = new THREE.MeshStandardMaterial({ map: spotTex, transparent: true, opacity: 0,
+    roughness: 1, metalness: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  const spotGeo = new THREE.PlaneGeometry(0.34, 0.24);
   const spot = new THREE.Mesh(spotGeo, spotMat);
   const spotPos = GRS_DIR.clone().multiplyScalar(1.002);
   spot.position.copy(spotPos);
   spot.lookAt(spotPos.clone().multiplyScalar(2));
   planet.add(spot);
 
+  // Crop the real Great Red Spot out of the photo (feathered) for the decal
+  const GRS_CROP = { x: 699, y: 627, hw: 74, hh: 54 };
+  function drawGRSFromPhoto(img) {
+    const cw = spotCanvas.width, ch = spotCanvas.height;
+    sc.clearRect(0, 0, cw, ch);
+    sc.drawImage(img, GRS_CROP.x - GRS_CROP.hw, GRS_CROP.y - GRS_CROP.hh,
+      GRS_CROP.hw * 2, GRS_CROP.hh * 2, 0, 0, cw, ch);
+    sc.globalCompositeOperation = "destination-in";
+    sc.save(); sc.translate(cw / 2, ch / 2); sc.scale(1, ch / cw); sc.translate(-cw / 2, -ch / 2);
+    const gr = sc.createRadialGradient(cw / 2, ch / 2, cw * 0.12, cw / 2, ch / 2, cw * 0.5);
+    gr.addColorStop(0, "rgba(0,0,0,1)"); gr.addColorStop(0.72, "rgba(0,0,0,1)"); gr.addColorStop(1, "rgba(0,0,0,0)");
+    sc.fillStyle = gr; sc.fillRect(0, 0, cw, ch); sc.restore();
+    sc.globalCompositeOperation = "source-over";
+    spotTex.needsUpdate = true;
+  }
+
+  // Bake the storm once: a turbulent, spiral-sheared cloud disc (transparent
+  // outside its ragged edge) plus a separate wispy filament layer. Animating
+  // then only means compositing these with slow, opposing rotations — cheap,
+  // and it reads as organic churn rather than a spinning wheel.
+  function makeStormLayers() {
+    const S = 340, R = 168, c = S / 2;
+    const bodyC = document.createElement("canvas"); bodyC.width = S; bodyC.height = S;
+    const bx = bodyC.getContext("2d"); const bImg = bx.createImageData(S, S); const bd = bImg.data;
+    const filC = document.createElement("canvas"); filC.width = S; filC.height = S;
+    const fx = filC.getContext("2d"); const fImg = fx.createImageData(S, S); const fd = fImg.data;
+    for (let y = 0; y < S; y++) {
+      for (let x = 0; x < S; x++) {
+        const dx = x - c, dy = y - c, r = Math.sqrt(dx * dx + dy * dy);
+        const idx = (y * S + x) * 4;
+        if (r > R) { bd[idx + 3] = 0; fd[idx + 3] = 0; continue; }
+        const ang = Math.atan2(dy, dx);
+        // gentle spiral shear + a large-scale un-swirled warp so the storm
+        // churns turbulently instead of forming a symmetric "eye"
+        const spiral = ang + (r / R) * 2.3;
+        const sx = Math.cos(spiral) * r, sy = Math.sin(spiral) * r;
+        const n1 = fbm(sx * 0.018 + 5, sy * 0.018 + 9);
+        const n2 = fbm(sx * 0.050 + 20, sy * 0.050 + 3);
+        const n3 = fbm(dx * 0.020 + 40, dy * 0.020 + 15);   // breaks radial symmetry
+        const turb = n1 * 0.48 + n2 * 0.28 + n3 * 0.24;
+        const t = r / R;
+        // fairly uniform orange body — deliberately NO bright central highlight
+        let cr = 208, cg = 134, cb = 90;
+        const shade = 0.72 + turb * 0.56;
+        cr *= shade; cg *= shade; cb *= shade;
+        const pale = Math.max(0, turb - 0.62) * 1.2;        // subtle broken wisps
+        cr = cr + (240 - cr) * pale * 0.4;
+        cg = cg + (206 - cg) * pale * 0.4;
+        cb = cb + (170 - cb) * pale * 0.4;
+        // natural darker rim (baked, not a drawn ring)
+        if (t > 0.74) { const d = 1 - ((t - 0.74) / 0.26) * 0.34; cr *= d; cg *= d; cb *= d; }
+        const edge = 0.78 + (turb - 0.5) * 0.16;
+        const a = t > edge ? Math.max(0, 1 - (t - edge) / (1 - edge)) : 1;
+        bd[idx] = Math.min(255, cr); bd[idx + 1] = Math.min(255, cg);
+        bd[idx + 2] = Math.min(255, cb); bd[idx + 3] = Math.round(a * 255);
+        // filament layer: sparse broken wisps (no concentric iris rings)
+        const fn = fbm(sx * 0.030 - 12, sy * 0.030 + 30);
+        const fv = Math.max(0, fn - 0.66) * 1.8;
+        fd[idx] = 238; fd[idx + 1] = 204; fd[idx + 2] = 168;
+        fd[idx + 3] = Math.round(Math.min(1, fv) * a * 180);
+      }
+    }
+    bx.putImageData(bImg, 0, 0); fx.putImageData(fImg, 0, 0);
+    return { body: bodyC, fil: filC, S: S, R: R };
+  }
+  const storm = { S: 340, R: 168 };   // (procedural storm retired in favour of the real photo)
+
   function drawSpot(time) {
     const w = spotCanvas.width, h = spotCanvas.height, cx = w / 2, cy = h / 2;
+    const rx = w / 2 - 4, ry = h / 2 - 4;
+    const sX = rx / storm.R, sY = ry / storm.R;
     sc.clearRect(0, 0, w, h);
+    // clip to the storm's oval
     sc.save();
-    sc.translate(cx, cy); sc.scale(1, h / w);
-    sc.beginPath(); sc.arc(0, 0, w / 2 - 4, 0, Math.PI * 2); sc.clip();
-    // body
-    const body = sc.createRadialGradient(0, 0, 4, 0, 0, w / 2);
-    body.addColorStop(0, "#f2ad8b"); body.addColorStop(0.35, "#d9694a");
-    body.addColorStop(0.7, "#a83521"); body.addColorStop(1, "#7a2417");
-    sc.fillStyle = body; sc.fillRect(-w, -w, w * 2, w * 2);
-    // swirl bands
-    const spin = time * 0.35;
-    for (let ring = 0; ring < 6; ring++) {
-      const rr = (w / 2) * (0.9 - ring * 0.13);
-      sc.strokeStyle = ring % 2 === 0 ? "rgba(255,214,186,0.30)" : "rgba(110,28,18,0.42)";
-      sc.lineWidth = w * 0.04; sc.beginPath();
-      for (let a = 0; a <= Math.PI * 2 + 0.1; a += 0.14) {
-        const wob = 0.07 * Math.sin(a * 3 + spin + ring);
-        const rad = rr * (1 + wob);
-        const ang = a + spin * (1 - ring * 0.1);
-        const px = Math.cos(ang) * rad, py = Math.sin(ang) * rad * 0.94;
-        a === 0 ? sc.moveTo(px, py) : sc.lineTo(px, py);
-      }
-      sc.stroke();
-    }
-    // bright eye
-    const eye = sc.createRadialGradient(0, 0, 0, 0, 0, w * 0.16);
-    eye.addColorStop(0, "rgba(255,232,208,0.9)"); eye.addColorStop(1, "rgba(255,232,208,0)");
-    sc.fillStyle = eye; sc.beginPath(); sc.arc(0, 0, w * 0.16, 0, Math.PI * 2); sc.fill();
+    sc.beginPath(); sc.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); sc.clip();
+    // body — slow counter-clockwise rotation (as the real GRS turns)
+    sc.save();
+    sc.translate(cx, cy); sc.scale(sX, sY); sc.rotate(-time * 0.045);
+    sc.drawImage(storm.body, -storm.S / 2, -storm.S / 2);
     sc.restore();
-    // dark rim
-    sc.save(); sc.translate(cx, cy); sc.scale(1, h / w);
-    sc.strokeStyle = "rgba(60,16,10,0.6)"; sc.lineWidth = w * 0.03;
-    sc.beginPath(); sc.arc(0, 0, w / 2 - 5, 0, Math.PI * 2); sc.stroke(); sc.restore();
+    // filaments — a different speed so the turbulence appears to evolve
+    sc.save();
+    sc.globalCompositeOperation = "lighter"; sc.globalAlpha = 0.4;
+    sc.translate(cx, cy); sc.scale(sX, sY); sc.rotate(-time * 0.028 + 1.2);
+    sc.drawImage(storm.fil, -storm.S / 2, -storm.S / 2);
+    sc.restore();
+    sc.restore();
     spotTex.needsUpdate = true;
   }
 
   // pulsing hint ring around the spot
   const ringMat = new THREE.MeshBasicMaterial({ color: 0xffb488, transparent: true,
     opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
-  const ring = new THREE.Mesh(new THREE.RingGeometry(0.34, 0.37, 48), ringMat);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.182, 0.196, 48), ringMat);
   ring.position.copy(spotPos.clone().multiplyScalar(1.001));
   ring.lookAt(spotPos.clone().multiplyScalar(2));
   planet.add(ring);
@@ -385,31 +548,125 @@ window.addEventListener("load", function () {
   // (Sphere UV already places lon 0 toward +Z, so no rotation needed.)
 
   // ---------- Lighting ----------
-  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-  const sun = new THREE.DirectionalLight(0xfff3e0, 1.5);
+  // Bright, nearly flat lighting so Jupiter reads like the evenly-lit Hubble photo
+  scene.add(new THREE.AmbientLight(0xffffff, 1.15));
+  const sun = new THREE.DirectionalLight(0xfff6e8, 0.55);
   sun.position.set(-2.2, 1.2, 2.5);
   scene.add(sun);
-  const rim = new THREE.DirectionalLight(0x6688cc, 0.35);
+  const rim = new THREE.DirectionalLight(0x88aaff, 0.15);
   rim.position.set(2, -1, -1.5);
   scene.add(rim);
 
-  // ---------- Starfield ----------
-  (function stars() {
-    const n = 1800, pos = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) {
-      const r = 40 + Math.random() * 40;
-      const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
-      pos[i*3] = r * Math.sin(ph) * Math.cos(th);
-      pos[i*3+1] = r * Math.sin(ph) * Math.sin(th);
-      pos[i*3+2] = r * Math.cos(ph);
+  // ---------- Cosmic backdrop: nebula sky, stars, Milky Way, shooting stars ----------
+  function makeSkyTexture() {
+    const W = 2048, H = 1024;
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    const x = cv.getContext("2d");
+    x.fillStyle = "#03040b"; x.fillRect(0, 0, W, H);
+    x.globalCompositeOperation = "lighter";
+    // soft nebula clouds
+    const cols = [[40,70,150],[90,45,140],[150,50,110],[35,110,130],[150,110,60],[60,40,150]];
+    for (let i = 0; i < 26; i++) {
+      const cx = Math.random() * W, cy = Math.random() * H, r = 120 + Math.random() * 360;
+      const col = cols[(Math.random() * cols.length) | 0], a = 0.05 + Math.random() * 0.12;
+      const gr = x.createRadialGradient(cx, cy, 0, cx, cy, r);
+      gr.addColorStop(0, "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + a + ")");
+      gr.addColorStop(1, "rgba(" + col[0] + "," + col[1] + "," + col[2] + ",0)");
+      x.fillStyle = gr; x.beginPath(); x.arc(cx, cy, r, 0, 6.2832); x.fill();
+    }
+    // faint Milky Way band
+    x.save(); x.translate(W * 0.5, H * 0.5); x.rotate(-0.35);
+    const band = x.createLinearGradient(0, -H * 0.14, 0, H * 0.14);
+    band.addColorStop(0, "rgba(120,120,150,0)");
+    band.addColorStop(0.5, "rgba(150,140,165,0.10)");
+    band.addColorStop(1, "rgba(120,120,150,0)");
+    x.fillStyle = band; x.fillRect(-W, -H * 0.14, W * 2, H * 0.28);
+    x.restore();
+    // stars (white / blue / warm), brightest ones get a soft glow
+    for (let i = 0; i < 3200; i++) {
+      const sx = Math.random() * W, sy = Math.random() * H, roll = Math.random();
+      let col = "rgba(255,255,255,";
+      if (roll < 0.15) col = "rgba(170,200,255,"; else if (roll < 0.28) col = "rgba(255,220,180,";
+      const a = 0.3 + Math.random() * 0.7, sz = Math.random() < 0.92 ? Math.random() * 1.1 + 0.3 : Math.random() * 2.2 + 1.4;
+      x.fillStyle = col + a + ")"; x.beginPath(); x.arc(sx, sy, sz, 0, 6.2832); x.fill();
+      if (sz > 1.6) {
+        const gg = x.createRadialGradient(sx, sy, 0, sx, sy, sz * 4);
+        gg.addColorStop(0, col + (a * 0.5) + ")"); gg.addColorStop(1, col + "0)");
+        x.fillStyle = gg; x.beginPath(); x.arc(sx, sy, sz * 4, 0, 6.2832); x.fill();
+      }
+    }
+    x.globalCompositeOperation = "source-over";
+    const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace; return tx;
+  }
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(60, 48, 48),
+    new THREE.MeshBasicMaterial({ map: makeSkyTexture(), side: THREE.BackSide, depthWrite: false }));
+  scene.add(sky);
+
+  // Twinkling foreground stars (parallax + life)
+  const twMat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: `attribute float aSize; attribute float aPhase; attribute vec3 aColor;
+      uniform float uTime; varying vec3 vColor; varying float vTw;
+      void main(){ vColor = aColor; vTw = 0.55 + 0.45 * sin(uTime * 2.0 + aPhase);
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = aSize * (320.0 / -mv.z); gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `varying vec3 vColor; varying float vTw;
+      void main(){ vec2 d = gl_PointCoord - 0.5; float r = length(d);
+        float a = smoothstep(0.5, 0.0, r); gl_FragColor = vec4(vColor, a * vTw); }`
+  });
+  (function twinkle() {
+    const N = 520, tp = new Float32Array(N * 3), ts = new Float32Array(N), tph = new Float32Array(N), tc = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) {
+      const r = 30 + Math.random() * 25, th = Math.random() * 6.283, ph = Math.acos(2 * Math.random() - 1);
+      tp[i*3] = r * Math.sin(ph) * Math.cos(th); tp[i*3+1] = r * Math.sin(ph) * Math.sin(th); tp[i*3+2] = r * Math.cos(ph);
+      ts[i] = 0.6 + Math.random() * 2.4; tph[i] = Math.random() * 6.283;
+      const roll = Math.random(); let cr = 1, cg = 1, cb = 1;
+      if (roll < 0.16) { cr = 0.7; cg = 0.8; cb = 1.0; } else if (roll < 0.3) { cr = 1.0; cg = 0.85; cb = 0.7; }
+      tc[i*3] = cr; tc[i*3+1] = cg; tc[i*3+2] = cb;
     }
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    scene.add(new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.18, sizeAttenuation: true })));
+    geo.setAttribute("position", new THREE.BufferAttribute(tp, 3));
+    geo.setAttribute("aSize", new THREE.BufferAttribute(ts, 1));
+    geo.setAttribute("aPhase", new THREE.BufferAttribute(tph, 1));
+    geo.setAttribute("aColor", new THREE.BufferAttribute(tc, 3));
+    scene.add(new THREE.Points(geo, twMat));
   })();
 
+  // Shooting stars — occasional streaks (black tail fades under additive blending)
+  const meteors = [];
+  for (let i = 0; i < 4; i++) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
+    geo.setAttribute("color", new THREE.BufferAttribute(new Float32Array([1,1,1, 0,0,0]), 3));
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({
+      vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+    scene.add(line);
+    meteors.push({ line, start: new THREE.Vector3(), vel: new THREE.Vector3(), tail: 5, age: 0, dur: 1, delay: Math.random() * 6, active: false });
+  }
+  function launchMeteor(m) {
+    const R = 48, th = Math.random() * Math.PI * 2, ph = 0.5 + Math.random() * 1.4;
+    m.start.set(R * Math.sin(ph) * Math.cos(th), R * Math.cos(ph) * 0.6 + 8, R * Math.sin(ph) * Math.sin(th));
+    m.vel.set(Math.random() - 0.5, -(0.4 + Math.random() * 0.5), Math.random() - 0.5).normalize().multiplyScalar(26 + Math.random() * 16);
+    m.tail = 4 + Math.random() * 4; m.age = 0; m.dur = 0.9 + Math.random() * 0.8; m.active = true;
+  }
+  function updateMeteors(dt) {
+    const head = new THREE.Vector3(), tail = new THREE.Vector3(), dir = new THREE.Vector3();
+    for (const m of meteors) {
+      if (!m.active) { m.delay -= dt; if (m.delay <= 0) launchMeteor(m); continue; }
+      m.age += dt;
+      if (m.age >= m.dur) { m.active = false; m.delay = 2 + Math.random() * 7; m.line.material.opacity = 0; continue; }
+      head.copy(m.start).addScaledVector(m.vel, m.age);
+      dir.copy(m.vel).normalize();
+      tail.copy(head).addScaledVector(dir, -m.tail);
+      const p = m.line.geometry.attributes.position;
+      p.setXYZ(0, head.x, head.y, head.z); p.setXYZ(1, tail.x, tail.y, tail.z); p.needsUpdate = true;
+      m.line.material.opacity = Math.sin(Math.min(1, m.age / m.dur) * Math.PI);
+    }
+  }
+
   // ---------- Camera controller (orbit around a target, clamped) ----------
-  const DEFAULT_DIST = 3.4, MIN_DIST = 1.55, MAX_DIST = 7;
+  const DEFAULT_DIST = 3.4, MIN_DIST = 1.3, MAX_DIST = 7;
   let camTarget = new THREE.Vector3(0, 0, 0);
   // spherical offset of camera around target
   let dist = DEFAULT_DIST, theta = 0, phi = Math.PI / 2; // theta azimuth, phi polar
@@ -460,23 +717,29 @@ window.addEventListener("load", function () {
     tgtDist = dist; tweening = false; updateZoomLabel();
   }, { passive: false });
 
-  // raycast against the spot
+  // raycast against the storm and the planet
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
-  function pointerHitsSpot(x, y) {
+  function updatePointer(x, y) {
     ndc.x = (x / window.innerWidth) * 2 - 1;
     ndc.y = -(y / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(ndc, camera);
-    return raycaster.intersectObject(spot, false).length > 0;
   }
-  function updateHover(x, y) { canvas.classList.toggle("can-click", pointerHitsSpot(x, y)); }
-  function handleClick(x, y) { if (pointerHitsSpot(x, y)) { openPanel(); zoomToSpot(); } }
+  const hitsSpot = () => raycaster.intersectObject(spot, false).length > 0;
+  const hitsPlanet = () => raycaster.intersectObject(planet, false).length > 0;
+  function updateHover(x, y) { updatePointer(x, y); canvas.classList.toggle("can-click", hitsSpot() || hitsPlanet()); }
+  function handleClick(x, y) {
+    if (timeMode) return;   // time view has its own controls; don't hijack clicks
+    updatePointer(x, y);
+    if (hitsSpot()) { openGRS(); zoomToSpot(); }
+    else if (hitsPlanet()) { openJupiter(); }
+  }
 
   // ---------- Tween helpers ----------
   function zoomToSpot() {
     // aim camera down the spot's surface normal, framed a touch left of centre
-    tgtTarget.copy(GRS_DIR).multiplyScalar(0.55);
-    tgtDist = 1.75;
+    tgtTarget.copy(GRS_DIR).multiplyScalar(0.78);
+    tgtDist = 1.38;
     tgtTheta = GRS_LON - 0.18;         // slight offset so the panel doesn't cover it
     tgtPhi = Math.PI / 2 - GRS_LAT * 0.9 + 0.12;
     tweening = true;
@@ -489,17 +752,92 @@ window.addEventListener("load", function () {
     tgtDist = dist; tweening = false; updateZoomLabel();
   }
 
-  // ---------- Panel ----------
+  // ---------- Panels ----------
   let panelOpen = false;
-  const panel = document.getElementById("panel");
-  function openPanel() { panelOpen = true; panel.classList.add("open"); panel.setAttribute("aria-hidden", "false"); }
-  function closePanel() { panelOpen = false; panel.classList.remove("open"); panel.setAttribute("aria-hidden", "true"); }
-  document.getElementById("closePanel").addEventListener("click", closePanel);
-  document.getElementById("zoomSpot").addEventListener("click", () => { openPanel(); zoomToSpot(); });
-  document.getElementById("reset").addEventListener("click", () => { closePanel(); resetView(); });
+  const panelG = document.getElementById("panel");   // Great Red Spot
+  const panelJ = document.getElementById("panelJ");   // Jupiter (the planet)
+  function openGRS() {
+    panelJ.classList.remove("open"); panelJ.setAttribute("aria-hidden", "true");
+    panelG.classList.add("open"); panelG.setAttribute("aria-hidden", "false"); panelOpen = true;
+  }
+  function openJupiter() {
+    panelG.classList.remove("open"); panelG.setAttribute("aria-hidden", "true");
+    panelJ.classList.add("open"); panelJ.setAttribute("aria-hidden", "false"); panelOpen = true;
+  }
+  function closePanels() {
+    panelG.classList.remove("open"); panelG.setAttribute("aria-hidden", "true");
+    panelJ.classList.remove("open"); panelJ.setAttribute("aria-hidden", "true"); panelOpen = false;
+  }
+  document.getElementById("closePanel").addEventListener("click", closePanels);
+  document.getElementById("closePanelJ").addEventListener("click", closePanels);
+  document.getElementById("zoomSpot").addEventListener("click", () => { openGRS(); zoomToSpot(); });
+  document.getElementById("reset").addEventListener("click", () => {
+    closePanels();
+    if (timeMode) exitTime();
+    else resetView();
+  });
   document.getElementById("zoomIn").addEventListener("click", () => stepZoom(1 / 1.25));
   document.getElementById("zoomOut").addEventListener("click", () => stepZoom(1.25));
-  window.addEventListener("keydown", e => { if (e.key === "Escape") closePanel(); });
+  window.addEventListener("keydown", e => { if (e.key === "Escape") { closePanels(); if (timeMode) exitTime(); } });
+
+  // ---------- Time machine: watch the storm change through history ----------
+  // Keyframes: [year, east-west width (km), north-south height (km)].
+  const TIME_KEYS = [[1880, 41000, 14000], [1920, 33000, 13500], [1979, 23000, 13000],
+                     [2000, 19000, 12500], [2024, 16000, 12000]];
+  const KWORLD = 0.26 / 16000;   // world units per km (present ~16,000 km = 0.26 wide)
+  let timeMode = false, timePlaying = false, timeDir = -1, timeYear = 2024;
+  const timebar = document.getElementById("timebar");
+  const timeSlider = document.getElementById("timeSlider");
+  const timeYearEl = document.getElementById("timeYear");
+  const timeSizeEl = document.getElementById("timeSize");
+  const timeEarthEl = document.getElementById("timeEarth");
+  const timePlayBtn = document.getElementById("timePlay");
+  const timeBtn = document.getElementById("timeMachine");
+
+  function sizeForYear(y) {
+    y = Math.max(1880, Math.min(2024, y));
+    let a = TIME_KEYS[0], b = TIME_KEYS[TIME_KEYS.length - 1];
+    for (let i = 0; i < TIME_KEYS.length - 1; i++) {
+      if (y >= TIME_KEYS[i][0] && y <= TIME_KEYS[i + 1][0]) { a = TIME_KEYS[i]; b = TIME_KEYS[i + 1]; break; }
+    }
+    const k = (y - a[0]) / ((b[0] - a[0]) || 1);
+    return { wKm: a[1] + (b[1] - a[1]) * k, hKm: a[2] + (b[2] - a[2]) * k };
+  }
+  function applyTimeSize() {
+    const s = sizeForYear(timeYear);
+    spot.scale.set(s.wKm * KWORLD / 0.26, s.hKm * KWORLD / 0.19, 1);
+    ring.scale.copy(spot.scale);
+    const yr = Math.round(timeYear);
+    timeSlider.value = yr;
+    timeYearEl.textContent = yr;
+    timeSizeEl.textContent = "~" + (Math.round(s.wKm / 500) * 500).toLocaleString() + " km";
+    timeEarthEl.textContent = (s.wKm / 12742).toFixed(1) + "× Earth";
+  }
+  function updatePlayIcon() { timePlayBtn.textContent = timePlaying ? "❚❚" : "▶"; }
+
+  function enterTime() {
+    timeMode = true; timeYear = 2024; timeDir = -1; timePlaying = true;
+    timebar.classList.add("show"); timeBtn.classList.add("active");
+    spotMat.opacity = 1;   // show the (resizable) cropped real spot while time-travelling
+    closePanels();
+    // frame the storm with room for it to grow into the past
+    tgtTarget.copy(GRS_DIR).multiplyScalar(0.45); tgtDist = 2.5;
+    tgtTheta = GRS_LON; tgtPhi = Math.PI / 2 - GRS_LAT * 0.9 + 0.05; tweening = true;
+    applyTimeSize(); updatePlayIcon();
+  }
+  function exitTime() {
+    timeMode = false; timePlaying = false;
+    timebar.classList.remove("show"); timeBtn.classList.remove("active");
+    spotMat.opacity = 0;   // hand back to the real photographic spot
+    spot.scale.set(1, 1, 1); ring.scale.set(1, 1, 1);
+    resetView();
+  }
+  timeBtn.addEventListener("click", () => { timeMode ? exitTime() : enterTime(); });
+  timePlayBtn.addEventListener("click", () => { timePlaying = !timePlaying; updatePlayIcon(); });
+  timeSlider.addEventListener("input", () => {
+    timePlaying = false; updatePlayIcon(); timeYear = +timeSlider.value; applyTimeSize();
+  });
+  document.getElementById("timeExit").addEventListener("click", exitTime);
 
   // ---------- Resize ----------
   window.addEventListener("resize", () => {
@@ -528,13 +866,26 @@ window.addEventListener("load", function () {
       updateZoomLabel();
     }
 
+    // time machine: sweep the year back and forth, resizing the storm
+    if (timeMode) {
+      if (timePlaying) {
+        timeYear += timeDir * 16 * dt;
+        if (timeYear <= 1880) { timeYear = 1880; timeDir = 1; }
+        else if (timeYear >= 2024) { timeYear = 2024; timeDir = -1; }
+      }
+      applyTimeSize();
+    }
+
     // very slow atmospheric shimmer on the bands (keeps the spot fixed)
     planet.rotation.y = Math.sin(elapsed * 0.05) * 0.006;
 
-    drawSpot(elapsed);
+    // living backdrop: twinkle, drifting nebula, shooting stars
+    twMat.uniforms.uTime.value = elapsed;
+    sky.rotation.y += dt * 0.002;
+    updateMeteors(dt);
 
-    // pulse the hint ring only when zoomed out and panel closed
-    const showRing = (DEFAULT_DIST / dist) < 1.5 && !panelOpen;
+    // pulse the hint ring only when zoomed out, no panel, and not time-travelling
+    const showRing = (DEFAULT_DIST / dist) < 1.5 && !panelOpen && !timeMode;
     ring.visible = showRing;
     if (showRing) {
       const p = 0.5 + 0.5 * Math.sin(elapsed * 2.2);
